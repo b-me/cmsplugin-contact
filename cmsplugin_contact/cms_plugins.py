@@ -115,7 +115,12 @@ class ContactPlugin(CMSPluginBase):
             FormClass = ContactForm
 
         form = None
-        if request.method == "POST":
+        if getattr(request, 'CMSPLUGIN_CONTACT', None) \
+                == instance.form_name \
+                or (request.method == "POST"
+                    and (not instance.form_name
+                         or instance.form_name
+                         == request.POST.get('my_name', '-'))):
             form = FormClass(request, data=request.POST, files=request.FILES)
         else:
             form = FormClass(request)
@@ -165,20 +170,23 @@ class ContactPlugin(CMSPluginBase):
             request.method = "GET"
         form = self.create_form(instance, request)
         instance.render_template = getattr(form, 'template', self.render_template)
-        if request.method == "POST" and form.is_valid():
+        if (request.method == "POST"
+                or getattr(request, 'CMSPLUGIN_CONTACT', None)
+                == instance.form_name) \
+                and form.is_valid():
             self.send(form, instance.form_name, instance.site_email, attachments=request.FILES)
-            
+
             if instance.redirect_url:
-                setattr(request, 'django_cms_contact_redirect_to', HttpResponseRedirect(instance.redirect_url)) 
+                setattr(request, 'django_cms_contact_redirect_to', HttpResponseRedirect(instance.redirect_url))
             context.update({
                 'contact': instance,
-            })        
+                'email_sent': True  # There could be other form in context
+            })
         else:
             context.update({
                 'contact': instance,
                 'form': form,
             })
-
         return context
 
     def render_change_form(self, request, context, add=False, change=False, form_url='', obj=None):
